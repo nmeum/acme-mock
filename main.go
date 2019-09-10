@@ -25,12 +25,16 @@ var (
 	tlsCert   = flag.String("c", "", "TLS certificate")
 )
 
-func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
+func getBaseURL(r *http.Request) string {
 	r.URL.Host = r.Host
 	r.URL.Scheme = "https"
 	r.URL.Path = ""
 
-	base := r.URL.String()
+	return r.URL.String()
+}
+
+func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	base := getBaseURL(r)
 	return acme.Directory{
 		NewNonceURL:   path.Join(base, newNoncePath),
 		NewAccountURL: path.Join(base, newAccountPath),
