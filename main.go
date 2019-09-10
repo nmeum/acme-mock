@@ -50,6 +50,16 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	base := getBaseURL(r)
+	w.Header().Add("Location", path.Join(base, "account"))
+
+	return acme.Account{
+		Status: "valid",
+		Orders: path.Join(base, "orders"),
+	}
+}
+
 func jsonMiddleware(fn acmeFn) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
@@ -68,5 +78,6 @@ func main() {
 
 	http.Handle("/directory", jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
+	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
