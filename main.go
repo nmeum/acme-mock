@@ -40,10 +40,10 @@ func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 }
 
-func nonceHandler(w http.ResponseWriter, r *http.Request) interface{} {
+func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	// Hardcoded value copied from RFC 8555
 	w.Header().Add("Replay-Nonce", "oFvnlFP1wIhRlYS2jTaXbA")
-	return nil
+	w.WriteHeader(http.StatusOK)
 }
 
 func jsonMiddleware(fn acmeFn) http.Handler {
@@ -51,11 +51,6 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 		w.Header().Add("Content-Type", "application/json")
 
 		val := fn(w, r)
-		if val == nil {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
 		err := json.NewEncoder(w).Encode(val)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -68,6 +63,6 @@ func main() {
 	flag.Parse()
 
 	http.Handle("/directory", jsonMiddleware(directoryHandler))
-	http.Handle(newNoncePath, jsonMiddleware(nonceHandler))
+	http.HandleFunc(newNoncePath, nonceHandler)
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
