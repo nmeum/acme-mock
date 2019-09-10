@@ -12,11 +12,11 @@ import (
 type acmeFn func(http.ResponseWriter, *http.Request) interface{}
 
 const (
-	newNoncePath   = "new-nonce"
-	newAccountPath = "new-account"
-	newOrderPath   = "new-order"
-	revokeCertPath = "revoke-cert"
-	keyChangePath  = "key-change"
+	newNoncePath   = "/new-nonce"
+	newAccountPath = "/new-account"
+	newOrderPath   = "/new-order"
+	revokeCertPath = "/revoke-cert"
+	keyChangePath  = "/key-change"
 )
 
 var (
