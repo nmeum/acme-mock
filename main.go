@@ -9,7 +9,7 @@ import (
 	"path"
 )
 
-type acmeFn func(*http.Request) interface{}
+type acmeFn func(http.ResponseWriter, *http.Request) interface{}
 
 const (
 	newNoncePath   = "new-nonce"
@@ -25,7 +25,7 @@ var (
 	tlsCert   = flag.String("c", "", "TLS certificate")
 )
 
-func directoryHandler(r *http.Request) interface{} {
+func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	r.URL.Host = r.Host
 	r.URL.Scheme = "https"
 	r.URL.Path = ""
@@ -44,7 +44,7 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 
-		val := fn(r)
+		val := fn(w, r)
 		err := json.NewEncoder(w).Encode(val)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
