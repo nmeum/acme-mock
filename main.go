@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"encoding/base64"
 	"flag"
-	"github.com/xenolf/lego/acme"
+	"github.com/nmeum/acme-mock/acme"
 	"log"
 	"net/http"
 )
@@ -85,7 +85,7 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 
 	order.Finalize = baseURLpath(r, "/finalize")
-	order.Authorizations = []string { baseURLpath(r, "/authorize") }
+	order.Authorizations = []string {}
 
 	w.WriteHeader(http.StatusCreated)
 	return order
