@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"encoding/base64"
 	"flag"
 	"github.com/xenolf/lego/acme"
 	"log"
@@ -23,6 +24,12 @@ var (
 	tlsKey    = flag.String("k", "", "TLS private key")
 	tlsCert   = flag.String("c", "", "TLS certificate")
 )
+
+type jwsobj struct {
+	Protected string `json:"protected"`
+	Payload   string `json:"payload"`
+	Signature string `json:"signature"`
+}
 
 func baseURLpath(r *http.Request, path string) string {
 	r.URL.Host = r.Host
@@ -55,8 +62,31 @@ func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 	return acme.Account{
 		Status: "valid",
-		Orders: path.Join(base, "orders"),
+		Orders: baseURLpath(r, "orders"),
 	}
+}
+
+func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	var jws jwsobj
+	err := json.NewDecoder(r.Body).Decode(&jws)
+	if err != nil {
+		panic(err)
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(jws.Payload)
+	if err != nil {
+		panic(err)
+	}
+
+	var order acme.Order
+	err = json.Unmarshal(payload, &order)
+	if err != nil {
+		panic(err)
+	}
+
+	order.Finalize = baseURLpath(r, "/finalize")
+	order.Authorizations = []string { baseURLpath(r, "/authorize") }
+	return order
 }
 
 func jsonMiddleware(fn acmeFn) http.Handler {
@@ -78,5 +108,6 @@ func main() {
 	http.Handle("/directory", jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
+	http.Handle(newOrderPath, jsonMiddleware(orderHandler))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
