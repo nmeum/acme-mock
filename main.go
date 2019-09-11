@@ -86,6 +86,8 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 	order.Finalize = baseURLpath(r, "/finalize")
 	order.Authorizations = []string { baseURLpath(r, "/authorize") }
+
+	w.WriteHeader(http.StatusCreated)
 	return order
 }
 
