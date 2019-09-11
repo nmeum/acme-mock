@@ -6,7 +6,6 @@ import (
 	"github.com/xenolf/lego/acme"
 	"log"
 	"net/http"
-	"path"
 )
 
 type acmeFn func(http.ResponseWriter, *http.Request) interface{}
@@ -25,22 +24,21 @@ var (
 	tlsCert   = flag.String("c", "", "TLS certificate")
 )
 
-func getBaseURL(r *http.Request) string {
+func baseURLpath(r *http.Request, path string) string {
 	r.URL.Host = r.Host
 	r.URL.Scheme = "https"
-	r.URL.Path = ""
+	r.URL.Path = path
 
 	return r.URL.String()
 }
 
 func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
-	base := getBaseURL(r)
 	return acme.Directory{
-		NewNonceURL:   path.Join(base, newNoncePath),
-		NewAccountURL: path.Join(base, newAccountPath),
-		NewOrderURL:   path.Join(base, newOrderPath),
-		RevokeCertURL: path.Join(base, revokeCertPath),
-		KeyChangeURL:  path.Join(base, keyChangePath),
+		NewNonceURL:   baseURLpath(r, newNoncePath),
+		NewAccountURL: baseURLpath(r, newAccountPath),
+		NewOrderURL:   baseURLpath(r, newOrderPath),
+		RevokeCertURL: baseURLpath(r, revokeCertPath),
+		KeyChangeURL:  baseURLpath(r, keyChangePath),
 	}
 }
 
@@ -51,8 +49,7 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
-	base := getBaseURL(r)
-	w.Header().Add("Location", path.Join(base, "account"))
+	w.Header().Add("Location", baseURLpath(r, "account"))
 
 	return acme.Account{
 		Status: "valid",
