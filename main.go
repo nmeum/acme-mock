@@ -45,6 +45,8 @@ func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
 func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	// Hardcoded value copied from RFC 8555
 	w.Header().Add("Replay-Nonce", "oFvnlFP1wIhRlYS2jTaXbA")
+
+	w.Header().Add("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 }
 
