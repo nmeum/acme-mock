@@ -12,11 +12,13 @@ import (
 type acmeFn func(http.ResponseWriter, *http.Request) interface{}
 
 const (
+	directoryPath  = "/directory"
 	newNoncePath   = "/new-nonce"
 	newAccountPath = "/new-account"
 	newOrderPath   = "/new-order"
 	revokeCertPath = "/revoke-cert"
 	keyChangePath  = "/key-change"
+	finalizePath   = "/finalize"
 )
 
 var (
@@ -84,7 +86,7 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		panic(err)
 	}
 
-	order.Finalize = baseURLpath(r, "/finalize")
+	order.Finalize = baseURLpath(r, finalizePath)
 	order.Authorizations = []string {}
 
 	w.WriteHeader(http.StatusCreated)
@@ -107,7 +109,7 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 func main() {
 	flag.Parse()
 
-	http.Handle("/directory", jsonMiddleware(directoryHandler))
+	http.Handle(directoryPath, jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
 	http.Handle(newOrderPath, jsonMiddleware(orderHandler))
