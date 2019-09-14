@@ -2,18 +2,20 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
-	"fmt"
 	"github.com/nmeum/acme-mock/acme"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"net/http"
-	"os/exec"
 	"path"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -36,10 +38,9 @@ var (
 	httpsAddr = flag.String("a", ":443", "address used for HTTPS socket")
 	tlsKey    = flag.String("k", "", "TLS private key")
 	tlsCert   = flag.String("c", "", "TLS certificate")
-	caKey     = flag.String("ck", "", "CA private key")
-	caCert    = flag.String("cc", "", "CA certificate")
 )
 
+var key *rsa.PrivateKey
 var orders []*orderCtx
 var ordersMtx sync.Mutex
 
@@ -54,31 +55,26 @@ type jwsobj struct {
 	Signature string `json:"signature"`
 }
 
-func createCrt(csr *acme.CSRMessage) ([]byte, error) {
-	data, err := base64.RawURLEncoding.DecodeString(csr.Csr)
+func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
+	data, err := base64.RawURLEncoding.DecodeString(csrMsg.Csr)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Don't depend on OpenSSL and perform this operation with
-	// the X509 go pkg instead. Though doing it with OpenSSL seems easier.
-	args := fmt.Sprintf("x509 -req -inform DER -CA %s -CAkey %s -set_serial 0", *caCert, *caKey)
-
-	cmd := exec.Command("openssl", strings.Split(args, " ")...)
-	stdin, err := cmd.StdinPipe()
+	csr, err := x509.ParseCertificateRequest(data)
 	if err != nil {
 		return nil, err
 	}
 
-	go func() {
-		defer stdin.Close()
-		_, err = stdin.Write(data)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	temp := x509.Certificate{
+		SerialNumber:   big.NewInt(5),
+		Subject:        csr.Subject,
+		DNSNames:       csr.DNSNames,
+		EmailAddresses: csr.EmailAddresses,
+		IPAddresses:    csr.IPAddresses,
+	}
 
-	return cmd.Output()
+	return x509.CreateCertificate(rand.Reader, &temp, &temp, &key.PublicKey, key)
 }
 
 func getOrder(r *http.Request) (*orderCtx, error) {
@@ -193,14 +189,17 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	return order.obj
 }
 
-func certHandler(w http.ResponseWriter, r *http.Request) interface{} {
+func certHandler(w http.ResponseWriter, r *http.Request) {
 	order, err := getOrder(r)
 	if order == nil && err == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
-		return nil
+		return
 	}
 
-	return order.crt
+	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
+	if err != nil {
+		panic(err)
+	}
 }
 
 func jsonMiddleware(fn acmeFn) http.Handler {
@@ -240,12 +239,18 @@ func jwtMiddleware(h http.Handler) http.Handler {
 func main() {
 	flag.Parse()
 
+	var err error
+	key, err = rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	http.Handle(directoryPath, jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
 	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(newOrderHandler)))
 	http.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
-	http.Handle(certificatePath, jsonMiddleware(certHandler))
+	http.HandleFunc(certificatePath, certHandler)
 	http.Handle(orderPath, jsonMiddleware(orderHandler))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
