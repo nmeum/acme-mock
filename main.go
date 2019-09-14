@@ -5,12 +5,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"github.com/nmeum/acme-mock/acme"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -33,6 +36,8 @@ var (
 	httpsAddr = flag.String("a", ":443", "address used for HTTPS socket")
 	tlsKey    = flag.String("k", "", "TLS private key")
 	tlsCert   = flag.String("c", "", "TLS certificate")
+	caKey     = flag.String("ck", "", "CA private key")
+	caCert    = flag.String("cc", "", "CA certificate")
 )
 
 var orders []*orderCtx
@@ -47,6 +52,33 @@ type jwsobj struct {
 	Protected string `json:"protected"`
 	Payload   string `json:"payload"`
 	Signature string `json:"signature"`
+}
+
+func createCrt(csr *acme.CSRMessage) ([]byte, error) {
+	data, err := base64.RawURLEncoding.DecodeString(csr.Csr)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Don't depend on OpenSSL and perform this operation with
+	// the X509 go pkg instead. Though doing it with OpenSSL seems easier.
+	args := fmt.Sprintf("x509 -req -inform DER -CA %s -CAkey %s -set_serial 0", *caCert, *caKey)
+
+	cmd := exec.Command("openssl", strings.Split(args, " ")...)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer stdin.Close()
+		_, err = stdin.Write(data)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	return cmd.Output()
 }
 
 func getOrder(r *http.Request) (*orderCtx, error) {
@@ -131,7 +163,17 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		return nil
 	}
 
-	order.crt = []byte("TODO")
+	var csrMsg acme.CSRMessage
+	err = json.NewDecoder(r.Body).Decode(&csrMsg)
+	if err != nil {
+		panic(err)
+	}
+
+	order.crt, err = createCrt(&csrMsg)
+	if err != nil {
+		panic(err)
+	}
+
 	order.obj.Status = acme.StatusValid
 	order.obj.Certificate = baseURLpath(r, path.Join(certificatePath, id))
 
