@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"io/ioutil"
 	"encoding/json"
 	"encoding/base64"
 	"flag"
@@ -69,19 +71,8 @@ func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
-	var jws jwsobj
-	err := json.NewDecoder(r.Body).Decode(&jws)
-	if err != nil {
-		panic(err)
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(jws.Payload)
-	if err != nil {
-		panic(err)
-	}
-
 	var order acme.Order
-	err = json.Unmarshal(payload, &order)
+	err := json.NewDecoder(r.Body).Decode(&order)
 	if err != nil {
 		panic(err)
 	}
@@ -106,12 +97,30 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 	})
 }
 
+func jwtMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var jws jwsobj
+		err := json.NewDecoder(r.Body).Decode(&jws)
+		if err != nil {
+			panic(err)
+		}
+
+		payload, err := base64.RawURLEncoding.DecodeString(jws.Payload)
+		if err != nil {
+			panic(err)
+		}
+
+		r.Body = ioutil.NopCloser(bytes.NewReader(payload))
+		h.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	flag.Parse()
 
 	http.Handle(directoryPath, jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
-	http.Handle(newOrderPath, jsonMiddleware(orderHandler))
+	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(orderHandler)))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
