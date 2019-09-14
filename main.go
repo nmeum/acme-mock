@@ -89,8 +89,7 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 		val := fn(w, r)
 		err := json.NewEncoder(w).Encode(val)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			panic(err)
 		}
 	})
 }
