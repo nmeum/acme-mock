@@ -84,15 +84,13 @@ func getOrder(r *http.Request) (*orderCtx, error) {
 	}
 
 	ordersMtx.Lock()
-	if id >= len(orders) {
-		ordersMtx.Unlock()
+	defer ordersMtx.Unlock()
+
+	if id < len(orders) {
+		return orders[id], nil
+	} else {
 		return nil, nil
 	}
-
-	order := orders[id]
-	ordersMtx.Unlock()
-
-	return order, nil
 }
 
 func baseURLpath(r *http.Request, path string) string {
