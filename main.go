@@ -68,7 +68,7 @@ func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 }
 
-func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
+func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	var order acme.Order
 	err := json.NewDecoder(r.Body).Decode(&order)
 	if err != nil {
@@ -118,6 +118,6 @@ func main() {
 	http.Handle(directoryPath, jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
-	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(orderHandler)))
+	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(newOrderHandler)))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
