@@ -23,6 +23,17 @@ import (
 
 type acmeFn func(http.ResponseWriter, *http.Request) interface{}
 
+type orderCtx struct {
+	obj *acme.Order
+	crt []byte
+}
+
+type jwsobj struct {
+	Protected string `json:"protected"`
+	Payload   string `json:"payload"`
+	Signature string `json:"signature"`
+}
+
 const (
 	directoryPath  = "/directory"
 	newNoncePath   = "/new-nonce"
@@ -45,17 +56,6 @@ var (
 var key *rsa.PrivateKey
 var orders []*orderCtx
 var ordersMtx sync.Mutex
-
-type orderCtx struct {
-	obj *acme.Order
-	crt []byte
-}
-
-type jwsobj struct {
-	Protected string `json:"protected"`
-	Payload   string `json:"payload"`
-	Signature string `json:"signature"`
-}
 
 func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 	data, err := base64.RawURLEncoding.DecodeString(csrMsg.Csr)
