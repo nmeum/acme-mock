@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"fmt"
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
@@ -236,6 +238,11 @@ func jwtMiddleware(h http.Handler) http.Handler {
 
 func main() {
 	flag.Parse()
+	if (*tlsKey == "" || *tlsCert == "") {
+		fmt.Fprintf(flag.CommandLine.Output(), "missing TLS key or certificate\n")
+		flag.Usage()
+		os.Exit(2)
+	}
 
 	var err error
 	key, err = rsa.GenerateKey(rand.Reader, 2048)
