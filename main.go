@@ -132,7 +132,8 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	var order acme.Order
 	err := json.NewDecoder(r.Body).Decode(&order)
 	if err != nil {
-		panic(err)
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return nil
 	}
 
 	ordersMtx.Lock()
@@ -162,12 +163,14 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	var csrMsg acme.CSRMessage
 	err = json.NewDecoder(r.Body).Decode(&csrMsg)
 	if err != nil {
-		panic(err)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return nil
 	}
 
 	order.crt, err = createCrt(&csrMsg)
 	if err != nil {
-		panic(err)
+		http.Error(w, "createCrt failed", http.StatusInternalServerError)
+		return nil
 	}
 
 	order.obj.Status = acme.StatusValid
@@ -198,7 +201,8 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
 	if err != nil {
-		panic(err)
+		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -213,7 +217,8 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 
 		err := json.NewEncoder(w).Encode(val)
 		if err != nil {
-			panic(err)
+			http.Error(w, "JSON encoding failed", http.StatusInternalServerError)
+			return
 		}
 	})
 }
@@ -223,12 +228,14 @@ func jwtMiddleware(h http.Handler) http.Handler {
 		var jws jwsobj
 		err := json.NewDecoder(r.Body).Decode(&jws)
 		if err != nil {
-			panic(err)
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
 		}
 
 		payload, err := base64.RawURLEncoding.DecodeString(jws.Payload)
 		if err != nil {
-			panic(err)
+			http.Error(w, "Invalid Base64", http.StatusBadRequest)
+			return
 		}
 
 		r.Body = ioutil.NopCloser(bytes.NewReader(payload))
