@@ -20,6 +20,25 @@ requests.
 This is a horrible hack, I didn't read the entire RFC and only
 implemented the parts needed to make [acme-tiny][acme-tiny github] work.
 
+## Usage
+
+This software has no external dependencies and can be installed using:
+
+	$ go get github.com/nmeum/acme-mock
+
+Since ACME requires use of HTTPS, a TLS certificate is required for using
+this software. A bogus certificate can be generated with `openssl`:
+
+	$ yes "" | openssl req -x509 -nodes -newkey rsa:4096 \
+		-keyout key.pem -out cert.pem
+
+The generated TLS certificate and key need to be passed to `acme-mock`.
+Additionally, the TLS certificate needs to be added to the certificate
+store of the virtual machine. Afterwards, the ACME client needs to be
+configured to use the `acme-mock` directory. The URL of the directory
+resource depends on the address parameter, it defaults to
+`https://localhost/directory`.
+
 ## License
 
 This program is free software: you can redistribute it and/or modify it
