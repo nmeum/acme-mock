@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"github.com/nmeum/acme-mock/acme"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -76,7 +76,7 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 
 	order.Finalize = baseURLpath(r, finalizePath)
-	order.Authorizations = []string {}
+	order.Authorizations = []string{}
 
 	w.WriteHeader(http.StatusCreated)
 	return order
