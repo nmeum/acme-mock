@@ -23,7 +23,10 @@ const (
 	newOrderPath   = "/new-order"
 	revokeCertPath = "/revoke-cert"
 	keyChangePath  = "/key-change"
-	finalizePath   = "/finalize"
+
+	finalizePath    = "/finalize/"
+	certificatePath = "/certificate/"
+	orderPath       = "/order/"
 )
 
 var (
@@ -37,13 +40,31 @@ var ordersMtx sync.Mutex
 
 type orderCtx struct {
 	obj *acme.Order
-	csr *acme.CSRMessage
+	crt []byte
 }
 
 type jwsobj struct {
 	Protected string `json:"protected"`
 	Payload   string `json:"payload"`
 	Signature string `json:"signature"`
+}
+
+func getOrder(r *http.Request) (*orderCtx, error) {
+	id, err := strconv.Atoi(path.Base(r.URL.Path))
+	if err != nil {
+		return nil, err
+	}
+
+	ordersMtx.Lock()
+	if id >= len(orders) {
+		ordersMtx.Unlock()
+		return nil, nil
+	}
+
+	order := orders[id]
+	ordersMtx.Unlock()
+
+	return order, nil
 }
 
 func baseURLpath(r *http.Request, path string) string {
@@ -94,7 +115,29 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	order.Finalize = baseURLpath(r, path.Join(finalizePath, orderId))
 	order.Authorizations = []string{}
 
+	orderURL := baseURLpath(r, path.Join(orderPath, orderId))
+	w.Header().Add("Location", orderURL)
+
 	w.WriteHeader(http.StatusCreated)
+	return order
+}
+
+func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	id := path.Base(r.URL.Path)
+
+	order, err := getOrder(r)
+	if order == nil && err == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	order.crt = []byte("TODO")
+	order.obj.Status = acme.StatusValid
+	order.obj.Certificate = baseURLpath(r, path.Join(certificatePath, id))
+
+	orderURL := baseURLpath(r, path.Join(orderPath, id))
+	w.Header().Add("Location", orderURL)
+
 	return order
 }
 
@@ -103,6 +146,10 @@ func jsonMiddleware(fn acmeFn) http.Handler {
 		w.Header().Add("Content-Type", "application/json")
 
 		val := fn(w, r)
+		if val == nil {
+			return
+		}
+
 		err := json.NewEncoder(w).Encode(val)
 		if err != nil {
 			panic(err)
@@ -135,5 +182,6 @@ func main() {
 	http.HandleFunc(newNoncePath, nonceHandler)
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
 	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(newOrderHandler)))
+	http.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
