@@ -21,6 +21,10 @@ import (
 	"sync"
 )
 
+////
+// Types
+////
+
 type acmeFn func(http.ResponseWriter, *http.Request) interface{}
 
 type orderCtx struct {
@@ -33,6 +37,10 @@ type jwsobj struct {
 	Payload   string `json:"payload"`
 	Signature string `json:"signature"`
 }
+
+////
+// Variables & Constants
+////
 
 const (
 	directoryPath  = "/directory"
@@ -56,6 +64,10 @@ var (
 var key *rsa.PrivateKey
 var orders []*orderCtx
 var ordersMtx sync.Mutex
+
+////
+// Utility functions
+////
 
 func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 	data, err := base64.RawURLEncoding.DecodeString(csrMsg.Csr)
@@ -102,6 +114,10 @@ func baseURLpath(r *http.Request, path string) string {
 
 	return r.URL.String()
 }
+
+////
+// Handlers
+////
 
 func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	return acme.Directory{
@@ -206,6 +222,10 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+////
+// Middleware
+////
+
 func jsonMiddleware(fn acmeFn) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
@@ -242,6 +262,10 @@ func jwtMiddleware(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 	})
 }
+
+////
+// main
+////
 
 func main() {
 	flag.Parse()
