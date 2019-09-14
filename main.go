@@ -121,7 +121,7 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 
 func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	return acme.Account{
-		Status: "valid",
+		Status: acme.StatusValid,
 		Orders: baseURLpath(r, "orders"),
 	}
 }
