@@ -9,6 +9,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"path"
+	"strconv"
+	"sync"
 )
 
 type acmeFn func(http.ResponseWriter, *http.Request) interface{}
@@ -28,6 +31,14 @@ var (
 	tlsKey    = flag.String("k", "", "TLS private key")
 	tlsCert   = flag.String("c", "", "TLS certificate")
 )
+
+var orders []*orderCtx
+var ordersMtx sync.Mutex
+
+type orderCtx struct {
+	obj *acme.Order
+	csr *acme.CSRMessage
+}
 
 type jwsobj struct {
 	Protected string `json:"protected"`
@@ -75,7 +86,12 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 		panic(err)
 	}
 
-	order.Finalize = baseURLpath(r, finalizePath)
+	ordersMtx.Lock()
+	orderId := strconv.Itoa(len(orders))
+	orders = append(orders, &orderCtx{&order, nil})
+	ordersMtx.Unlock()
+
+	order.Finalize = baseURLpath(r, path.Join(finalizePath, orderId))
 	order.Authorizations = []string{}
 
 	w.WriteHeader(http.StatusCreated)
