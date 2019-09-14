@@ -62,8 +62,6 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
-	w.Header().Add("Location", baseURLpath(r, "account"))
-
 	return acme.Account{
 		Status: "valid",
 		Orders: baseURLpath(r, "orders"),
