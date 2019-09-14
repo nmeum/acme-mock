@@ -138,7 +138,17 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	orderURL := baseURLpath(r, path.Join(orderPath, id))
 	w.Header().Add("Location", orderURL)
 
-	return order
+	return order.obj
+}
+
+func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	order, err := getOrder(r)
+	if order == nil && err == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	return order.obj
 }
 
 func jsonMiddleware(fn acmeFn) http.Handler {
@@ -183,5 +193,6 @@ func main() {
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
 	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(newOrderHandler)))
 	http.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
+	http.Handle(orderPath, jsonMiddleware(orderHandler))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
