@@ -151,6 +151,16 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	return order.obj
 }
 
+func certHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	order, err := getOrder(r)
+	if order == nil && err == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
+	}
+
+	return order.crt
+}
+
 func jsonMiddleware(fn acmeFn) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
@@ -193,6 +203,7 @@ func main() {
 	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
 	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(newOrderHandler)))
 	http.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
+	http.Handle(certificatePath, jsonMiddleware(certHandler))
 	http.Handle(orderPath, jsonMiddleware(orderHandler))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
