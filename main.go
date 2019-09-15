@@ -59,6 +59,7 @@ var (
 	httpsAddr = flag.String("a", ":443", "address used for HTTPS socket")
 	tlsKey    = flag.String("k", "", "TLS private key")
 	tlsCert   = flag.String("c", "", "TLS certificate")
+	rsaBits   = flag.Int("b", 2048, "RSA key size")
 )
 
 var key *rsa.PrivateKey
@@ -276,7 +277,7 @@ func main() {
 	}
 
 	var err error
-	key, err = rsa.GenerateKey(rand.Reader, 2048)
+	key, err = rsa.GenerateKey(rand.Reader, *rsaBits)
 	if err != nil {
 		log.Fatal(err)
 	}
