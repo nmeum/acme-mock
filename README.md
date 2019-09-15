@@ -24,15 +24,15 @@ This software has no external dependencies and can be installed using:
 
 	$ go get github.com/nmeum/acme-mock
 
-Since ACME requires use of HTTPS, a TLS certificate is required for using
-this software. A bogus certificate can be generated with `openssl`:
+Since ACME requires HTTPS, a TLS certificate is needed. A bogus
+certificate can be generated with `openssl`:
 
 	$ yes "" | openssl req -x509 -nodes -newkey rsa:4096 \
 		-keyout key.pem -out cert.pem
 
 The generated TLS certificate and key need to be passed to `acme-mock`.
-Additionally, the TLS certificate needs to be added to the certificate
-store of the virtual machine. Afterwards, the ACME client needs to be
+Additionally, the certificate needs to be added to the certificate store
+of the virtual machine. Afterwards, the ACME client needs to be
 configured to use the `acme-mock` directory. The URL of the directory
 resource depends on the address parameter, it defaults to
 `https://localhost/directory`. The certificate, used for processing
