@@ -15,8 +15,8 @@ certificate signing requests.
 
 ## Status
 
-This is a horrible hack, I didn't read the RFC and only implemented the
-parts needed to make [acme-tiny][acme-tiny github] work.
+Horrible hack, didn't read the RFC and only implemented the parts needed
+to make [acme-tiny][acme-tiny github] work.
 
 ## Usage
 
