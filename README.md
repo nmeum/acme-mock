@@ -37,7 +37,8 @@ Additionally, the TLS certificate needs to be added to the certificate
 store of the virtual machine. Afterwards, the ACME client needs to be
 configured to use the `acme-mock` directory. The URL of the directory
 resource depends on the address parameter, it defaults to
-`https://localhost/directory`.
+`https://localhost/directory`. The certificate, used for processing
+certificate signing requests, is generated on startup.
 
 ## License
 
