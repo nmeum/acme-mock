@@ -92,19 +92,21 @@ func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 	return x509.CreateCertificate(rand.Reader, &temp, &temp, &key.PublicKey, key)
 }
 
-func getOrder(r *http.Request) (*orderCtx, error) {
+func getOrder(w http.ResponseWriter, r *http.Request) *orderCtx {
 	id, err := strconv.Atoi(path.Base(r.URL.Path))
 	if err != nil {
-		return nil, err
+		http.Error(w, "Not a number", http.StatusBadRequest)
+		return nil
 	}
 
 	ordersMtx.Lock()
 	defer ordersMtx.Unlock()
 
 	if id < len(orders) {
-		return orders[id], nil
+		return orders[id]
 	} else {
-		return nil, nil
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return nil
 	}
 }
 
@@ -170,18 +172,13 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	id := path.Base(r.URL.Path)
-
-	order, err := getOrder(r)
-	if order == nil && err == nil {
-		http.Error(w, "Not Found", http.StatusNotFound)
-		return nil
-	} else if err != nil {
-		http.Error(w, "getOrder failed", http.StatusInternalServerError)
+	order := getOrder(w, r)
+	if order == nil {
 		return nil
 	}
 
 	var csrMsg acme.CSRMessage
-	err = json.NewDecoder(r.Body).Decode(&csrMsg)
+	err := json.NewDecoder(r.Body).Decode(&csrMsg)
 	if err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return nil
@@ -203,12 +200,8 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
-	order, err := getOrder(r)
-	if order == nil && err == nil {
-		http.Error(w, "Not Found", http.StatusNotFound)
-		return nil
-	} else if err != nil {
-		http.Error(w, "getOrder failed", http.StatusInternalServerError)
+	order := getOrder(w, r)
+	if order == nil {
 		return nil
 	}
 
@@ -216,16 +209,12 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 }
 
 func certHandler(w http.ResponseWriter, r *http.Request) {
-	order, err := getOrder(r)
-	if order == nil && err == nil {
-		http.Error(w, "Not Found", http.StatusNotFound)
-		return
-	} else if err != nil {
-		http.Error(w, "getOrder failed", http.StatusInternalServerError)
+	order := getOrder(w, r)
+	if order == nil {
 		return
 	}
 
-	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
+	err := pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
 	if err != nil {
 		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
 		return
