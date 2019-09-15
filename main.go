@@ -175,6 +175,9 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	if order == nil && err == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return nil
+	} else if err != nil {
+		http.Error(w, "getOrder failed", http.StatusInternalServerError)
+		return nil
 	}
 
 	var csrMsg acme.CSRMessage
@@ -204,6 +207,9 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	if order == nil && err == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return nil
+	} else if err != nil {
+		http.Error(w, "getOrder failed", http.StatusInternalServerError)
+		return nil
 	}
 
 	return order.obj
@@ -213,6 +219,9 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 	order, err := getOrder(r)
 	if order == nil && err == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, "getOrder failed", http.StatusInternalServerError)
 		return
 	}
 
