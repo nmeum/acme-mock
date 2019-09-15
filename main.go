@@ -108,7 +108,7 @@ func getOrder(r *http.Request) (*orderCtx, error) {
 	}
 }
 
-func baseURLpath(r *http.Request, path string) string {
+func createURL(r *http.Request, path string) string {
 	r.URL.Host = r.Host
 	r.URL.Scheme = "https"
 	r.URL.Path = path
@@ -122,11 +122,11 @@ func baseURLpath(r *http.Request, path string) string {
 
 func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	return acme.Directory{
-		NewNonceURL:   baseURLpath(r, newNoncePath),
-		NewAccountURL: baseURLpath(r, newAccountPath),
-		NewOrderURL:   baseURLpath(r, newOrderPath),
-		RevokeCertURL: baseURLpath(r, revokeCertPath),
-		KeyChangeURL:  baseURLpath(r, keyChangePath),
+		NewNonceURL:   createURL(r, newNoncePath),
+		NewAccountURL: createURL(r, newAccountPath),
+		NewOrderURL:   createURL(r, newOrderPath),
+		RevokeCertURL: createURL(r, revokeCertPath),
+		KeyChangeURL:  createURL(r, keyChangePath),
 	}
 }
 
@@ -141,7 +141,7 @@ func nonceHandler(w http.ResponseWriter, r *http.Request) {
 func accountHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	return acme.Account{
 		Status: acme.StatusValid,
-		Orders: baseURLpath(r, "orders"),
+		Orders: createURL(r, "orders"),
 	}
 }
 
@@ -158,10 +158,10 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	orders = append(orders, &orderCtx{&order, nil})
 	ordersMtx.Unlock()
 
-	order.Finalize = baseURLpath(r, path.Join(finalizePath, orderId))
+	order.Finalize = createURL(r, path.Join(finalizePath, orderId))
 	order.Authorizations = []string{}
 
-	orderURL := baseURLpath(r, path.Join(orderPath, orderId))
+	orderURL := createURL(r, path.Join(orderPath, orderId))
 	w.Header().Add("Location", orderURL)
 
 	w.WriteHeader(http.StatusCreated)
@@ -191,9 +191,9 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	}
 
 	order.obj.Status = acme.StatusValid
-	order.obj.Certificate = baseURLpath(r, path.Join(certificatePath, id))
+	order.obj.Certificate = createURL(r, path.Join(certificatePath, id))
 
-	orderURL := baseURLpath(r, path.Join(orderPath, id))
+	orderURL := createURL(r, path.Join(orderPath, id))
 	w.Header().Add("Location", orderURL)
 
 	return order.obj
