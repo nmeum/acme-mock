@@ -9,11 +9,9 @@ Occasionally, I test these playbooks in virtual machines. Unfortunately,
 these virtual machines are incapable of completing ACME challenges and
 therefore don't receive any certificates from configured ACME servers.
 Without these certificates many daemons will refuse to start causing
-failures of ansible tasks.
-
-For this reason, I implemented a simple ACME server which doesn't
-perform any validations and always signs the given certificate signing
-requests.
+failures of ansible tasks. For this reason, I implemented a simple ACME
+server which doesn't perform any validations and always signs the given
+certificate signing requests.
 
 ## Status
 
