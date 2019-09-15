@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"fmt"
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
@@ -11,11 +9,13 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"flag"
+	"fmt"
 	"github.com/nmeum/acme-mock/acme"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
+	"os"
 	"path"
 	"strconv"
 	"sync"
@@ -270,7 +270,7 @@ func jwtMiddleware(h http.Handler) http.Handler {
 
 func main() {
 	flag.Parse()
-	if (*tlsKey == "" || *tlsCert == "") {
+	if *tlsKey == "" || *tlsCert == "" {
 		fmt.Fprintf(flag.CommandLine.Output(), "missing TLS key or certificate\n")
 		flag.Usage()
 		os.Exit(2)
