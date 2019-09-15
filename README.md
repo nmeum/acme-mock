@@ -1,6 +1,6 @@
 # acme-mock
 
-A server implementation of the [ACME protocol][RFC 8555] performing no validations.
+An [ACME][RFC 8555] server implementation performing no validations.
 
 ## Motivation
 
