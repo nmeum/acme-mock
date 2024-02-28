@@ -1,6 +1,7 @@
 package main
 
 import (
+	"acme-mock/acme"
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
@@ -10,7 +11,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"github.com/nmeum/acme-mock/acme"
 	"io/ioutil"
 	"log"
 	"math/big"
