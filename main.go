@@ -76,6 +76,8 @@ const (
 	finalizePath    = "/finalize/"
 	certificatePath = "/certificate/"
 	orderPath       = "/order/"
+
+	replayNonce = "oFvnlFP1wIhRlYS2jTaXbA"
 )
 
 var (
@@ -143,38 +145,7 @@ func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 	// Concatenate the PEM-encoded certificates
 	fullChain := append(pemCert1, pemCert2...)
 
-	// Convert to string for demonstration
-	fullChainString := string(fullChain)
-
-	// Print the concatenated PEM-encoded certificates
-	fmt.Println(fullChainString)
-
-	fmt.Println(err)
-
 	return fullChain, err
-}
-
-func getRandomNonce() string {
-	length := 22
-
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	randomBytes := make([]byte, length)
-
-	// Determine the number of random bytes needed
-	numLetters := byte(len(letters))
-
-	// Fill the byte slice with random data
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		return ""
-	}
-
-	// Convert random bytes to letters
-	for i, b := range randomBytes {
-		randomBytes[i] = letters[b%numLetters]
-	}
-
-	return string(randomBytes)
 }
 
 func getOrder(r *http.Request) (*orderCtx, error) {
@@ -219,8 +190,7 @@ func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	// Hardcoded value copied from RFC 8555
-	//w.Header().Add("Replay-Nonce", "oFvnlFP1wIhRlYS2jTaXbA")
-	w.Header().Add("Replay-Nonce", getRandomNonce())
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	w.Header().Add("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
@@ -253,7 +223,7 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 	orderURL := createURL(r, path.Join(orderPath, orderId))
 	w.Header().Add("Location", orderURL)
-	w.Header().Add("Replay-Nonce", getRandomNonce())
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	w.WriteHeader(http.StatusCreated)
 	return order
@@ -285,14 +255,14 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 	orderURL := createURL(r, path.Join(orderPath, id))
 	w.Header().Add("Location", orderURL)
-	w.Header().Add("Replay-Nonce", getRandomNonce())
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	return order.obj
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	order, err := getOrder(r)
-	w.Header().Add("Replay-Nonce", getRandomNonce())
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
@@ -304,7 +274,7 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 func certHandler(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Replay-Nonce", getRandomNonce())
+	w.Header().Set("Replay-Nonce", replayNonce)
 
 	order, err := getOrder(r)
 	if err != nil {
@@ -313,12 +283,6 @@ func certHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(order.crt)
-
-	// err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
-	// if err != nil {
-	// 	http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
-	// 	return
-	// }
 }
 
 ////
@@ -345,7 +309,7 @@ func authzHandler(w http.ResponseWriter, r *http.Request) interface{} {
 			{
 				Type:      "http-01",
 				URL:       createURL(r, "/chall"),
-				Token:     getRandomNonce(),
+				Token:     replayNonce,
 				Status:    "valid",
 				Validated: currentTimeString,
 			},
@@ -354,7 +318,7 @@ func authzHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 	// Set the Content-Type header
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Replay-Nonce", getRandomNonce())
+	w.Header().Set("Replay-Nonce", replayNonce)
 
 	// Set the status code to 201
 	w.WriteHeader(http.StatusCreated)
@@ -383,7 +347,7 @@ func jsonMiddlewareNewAccount(fn acmeFn) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		w.Header().Add("Location", createURL(r, "new-account"))
-		w.Header().Add("Replay-Nonce", getRandomNonce())
+		w.Header().Add("Replay-Nonce", replayNonce)
 		w.WriteHeader(http.StatusCreated)
 
 		val := fn(w, r)
