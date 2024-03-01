@@ -38,6 +38,14 @@ resource depends on the address parameter, it defaults to
 `https://localhost/directory`. The certificate, used for processing
 certificate signing requests, is generated on startup.
 
+### Certbot
+
+Certbot can be used against this ACME mock to retrieve mock certificates.
+
+```
+certbot certonly --standalone -d <your_domain> --server https://localhost/directory --register-unsafely-without-email
+```
+
 ## License
 
 This program is free software: you can redistribute it and/or modify it
