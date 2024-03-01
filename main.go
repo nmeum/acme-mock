@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -19,6 +20,7 @@ import (
 	"path"
 	"strconv"
 	"sync"
+	"time"
 )
 
 ////
@@ -38,6 +40,26 @@ type jwsobj struct {
 	Signature string `json:"signature"`
 }
 
+type authzResponse struct {
+	Status     string      `json:"status"`
+	Expires    string      `json:"expires"`
+	Identifier Identifier  `json:"identifier"`
+	Challenges []Challenge `json:"challenges"`
+}
+
+type Identifier struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type Challenge struct {
+	Type      string `json:"type"`
+	URL       string `json:"url"`
+	Status    string `json:"status"`
+	Validated string `json:"validated"`
+	Token     string `json:"token"`
+}
+
 ////
 // Variables & Constants
 ////
@@ -49,10 +71,13 @@ const (
 	newOrderPath   = "/new-order"
 	revokeCertPath = "/revoke-cert"
 	keyChangePath  = "/key-change"
+	authzPath      = "/authz"
 
 	finalizePath    = "/finalize/"
 	certificatePath = "/certificate/"
 	orderPath       = "/order/"
+
+	replayNonce = "oFvnlFP1wIhRlYS2jTaXbA"
 )
 
 var (
@@ -63,6 +88,7 @@ var (
 )
 
 var key *rsa.PrivateKey
+var caKey *rsa.PrivateKey
 var orders []*orderCtx
 var ordersMtx sync.Mutex
 
@@ -81,15 +107,40 @@ func createCrt(csrMsg *acme.CSRMessage) ([]byte, error) {
 		return nil, err
 	}
 
-	temp := x509.Certificate{
+	caTemp := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Mock CA"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(0, 0, 1), // Valid for 1 day
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	caCert, _ := x509.CreateCertificate(rand.Reader, &caTemp, &caTemp, &caKey.PublicKey, key)
+
+	certTemp := x509.Certificate{
 		SerialNumber:   big.NewInt(5),
 		Subject:        csr.Subject,
 		DNSNames:       csr.DNSNames,
 		EmailAddresses: csr.EmailAddresses,
 		IPAddresses:    csr.IPAddresses,
+		NotBefore:      time.Now(),
+		NotAfter:       time.Now().AddDate(0, 0, 1), // Valid for 1 day
 	}
 
-	return x509.CreateCertificate(rand.Reader, &temp, &temp, &key.PublicKey, key)
+	crt, err := x509.CreateCertificate(rand.Reader, &certTemp, &caTemp, &key.PublicKey, caKey)
+
+	// Encode the certificates to PEM format
+	pemCert1 := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCert})
+	pemCert2 := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: crt})
+
+	// Concatenate the PEM-encoded certificates
+	fullChain := append(pemCert1, pemCert2...)
+
+	return fullChain, err
 }
 
 func getOrder(r *http.Request) (*orderCtx, error) {
@@ -121,18 +172,20 @@ func createURL(r *http.Request, path string) string {
 ////
 
 func directoryHandler(w http.ResponseWriter, r *http.Request) interface{} {
+
 	return acme.Directory{
 		NewNonceURL:   createURL(r, newNoncePath),
 		NewAccountURL: createURL(r, newAccountPath),
 		NewOrderURL:   createURL(r, newOrderPath),
 		RevokeCertURL: createURL(r, revokeCertPath),
 		KeyChangeURL:  createURL(r, keyChangePath),
+		NewAuthzURL:   createURL(r, authzPath),
 	}
 }
 
 func nonceHandler(w http.ResponseWriter, r *http.Request) {
 	// Hardcoded value copied from RFC 8555
-	w.Header().Add("Replay-Nonce", "oFvnlFP1wIhRlYS2jTaXbA")
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	w.Header().Add("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
@@ -159,10 +212,13 @@ func newOrderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	ordersMtx.Unlock()
 
 	order.Finalize = createURL(r, path.Join(finalizePath, orderId))
-	order.Authorizations = []string{}
+
+	mockChallengeURL := "https://localhost:8443/authz"
+	order.Authorizations = []string{mockChallengeURL}
 
 	orderURL := createURL(r, path.Join(orderPath, orderId))
 	w.Header().Add("Location", orderURL)
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	w.WriteHeader(http.StatusCreated)
 	return order
@@ -194,12 +250,15 @@ func finalizeHandler(w http.ResponseWriter, r *http.Request) interface{} {
 
 	orderURL := createURL(r, path.Join(orderPath, id))
 	w.Header().Add("Location", orderURL)
+	w.Header().Add("Replay-Nonce", replayNonce)
 
 	return order.obj
 }
 
 func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 	order, err := getOrder(r)
+	w.Header().Add("Replay-Nonce", replayNonce)
+
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return nil
@@ -209,26 +268,80 @@ func orderHandler(w http.ResponseWriter, r *http.Request) interface{} {
 }
 
 func certHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Replay-Nonce", replayNonce)
+
 	order, err := getOrder(r)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
 	}
 
-	err = pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: order.crt})
-	if err != nil {
-		http.Error(w, "PEM encoding failed", http.StatusInternalServerError)
-		return
-	}
+	w.Write(order.crt)
 }
 
 ////
 // Middleware
 ////
 
+func authzHandler(w http.ResponseWriter, r *http.Request) interface{} {
+	// Get the current date and time
+	currentTime := time.Now().UTC()
+
+	// Format the current date and time as strings
+	currentTimeString := currentTime.Format(time.RFC3339)
+
+	// Create a authzResponse object
+	resp := authzResponse{
+		Status:  "valid",
+		Expires: currentTimeString,
+		Identifier: Identifier{
+			Type:  "dns",
+			Value: "localhost",
+		},
+		Challenges: []Challenge{
+			{
+				Type:      "http-01",
+				URL:       createURL(r, "/chall"),
+				Token:     replayNonce,
+				Status:    "valid",
+				Validated: currentTimeString,
+			},
+		},
+	}
+
+	// Set the Content-Type header
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Replay-Nonce", replayNonce)
+
+	// Set the status code to 201
+	w.WriteHeader(http.StatusCreated)
+
+	return resp
+}
+
 func jsonMiddleware(fn acmeFn) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
+
+		val := fn(w, r)
+		if val == nil {
+			return
+		}
+
+		err := json.NewEncoder(w).Encode(val)
+		if err != nil {
+			http.Error(w, "JSON encoding failed", http.StatusInternalServerError)
+			return
+		}
+	})
+}
+
+func jsonMiddlewareNewAccount(fn acmeFn) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		w.Header().Add("Location", createURL(r, "new-account"))
+		w.Header().Add("Replay-Nonce", replayNonce)
+		w.WriteHeader(http.StatusCreated)
 
 		val := fn(w, r)
 		if val == nil {
@@ -277,16 +390,18 @@ func main() {
 
 	var err error
 	key, err = rsa.GenerateKey(rand.Reader, *rsaBits)
+	caKey, err = rsa.GenerateKey(rand.Reader, *rsaBits)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	http.Handle(directoryPath, jsonMiddleware(directoryHandler))
 	http.HandleFunc(newNoncePath, nonceHandler)
-	http.Handle(newAccountPath, jsonMiddleware(accountHandler))
+	http.Handle(newAccountPath, jsonMiddlewareNewAccount(accountHandler))
 	http.Handle(newOrderPath, jwtMiddleware(jsonMiddleware(newOrderHandler)))
 	http.Handle(finalizePath, jwtMiddleware(jsonMiddleware(finalizeHandler)))
 	http.HandleFunc(certificatePath, certHandler)
 	http.Handle(orderPath, jsonMiddleware(orderHandler))
+	http.Handle(authzPath, jsonMiddleware(authzHandler))
 	log.Fatal(http.ListenAndServeTLS(*httpsAddr, *tlsCert, *tlsKey, nil))
 }
